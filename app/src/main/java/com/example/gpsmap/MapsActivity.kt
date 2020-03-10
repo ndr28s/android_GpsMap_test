@@ -101,11 +101,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun locationInit() {
         fusedLocationProviderClient = FusedLocationProviderClient(this)
-
         locationCallback = MyLocationCallBack()
-
         locationRequest = LocationRequest()
-
         locationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
         locationRequest.interval = 10000
         locationRequest.fastestInterval = 5000
@@ -125,8 +122,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Add a marker in Sydney and move the camera
         val sydney = LatLng(-34.0, 151.0)
-        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
+//        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
+//        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
     }
 
     private fun addLocationListener() {
@@ -177,6 +174,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 polylineOptions.add(latLng)
 
                 mMap.addPolyline((polylineOptions))
+                mMap.addMarker(MarkerOptions().position(latLng).title("현재 위치"))
+                mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng))
             }
         }
     }
