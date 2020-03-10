@@ -1,11 +1,17 @@
 package com.example.gpsmap
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.telephony.CellLocation.requestLocationUpdate
+import android.util.Log
+import android.view.WindowManager
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -19,38 +25,25 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.PolylineOptions
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var mMap: GoogleMap
-//    private val REQUEST_ACCESS_FINE_LOCATION = 1000
+    private val REQUEST_ACCESS_FINE_LOCATION = 1000
 
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
     private lateinit var locationCallback: LocationCallback
 
+    @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+
         setContentView(R.layout.activity_maps)
-
-
-//        if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)!= PackageManager.PERMISSION_GRANTED){
-//
-//            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)){
-//                val mAlertDialog = AlertDialog.Builder(this@MapsActivity)
-//                mAlertDialog.setIcon(R.mipmap.ic_launcher) //set alertdialog icon
-//                mAlertDialog.setTitle("권한이 필요한 이유") //set alertdialog title
-//                mAlertDialog.setMessage("위치 정보를 얻으려면 위치 정보 권한이 필수로 필요합니다") //set alertdialog message
-//                mAlertDialog.setPositiveButton("예") { dialog, id ->
-//                    ActivityCompat.requestPermissions(this@MapsActivity, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),REQUEST_ACCESS_FINE_LOCATION)
-//                }
-//                mAlertDialog.setNegativeButton("아니요") { dialog, id ->
-//                }
-//                mAlertDialog.show()
-//            } else {
-//                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),REQUEST_ACCESS_FINE_LOCATION)
-//            }
-//        }
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
@@ -58,6 +51,52 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         mapFragment.getMapAsync(this)
 
         locationInit()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        permissionCheck(cancel = {
+            showPermissionInfoDialog()
+        }, ok = {
+            addLocationListener()
+        })
+    }
+
+    private fun permissionCheck(cancel: () -> Unit, ok: () -> Unit) {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                )
+            ) {
+                cancel()
+            } else {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                    REQUEST_ACCESS_FINE_LOCATION
+                )
+            }
+        } else {
+            ok()
+        }
+    }
+
+    private fun showPermissionInfoDialog() {
+        val mAlertDialog = AlertDialog.Builder(this@MapsActivity)
+        mAlertDialog.setIcon(R.mipmap.ic_launcher) //set alertdialog icon
+        mAlertDialog.setTitle("권한이 필요한 이유") //set alertdialog title
+        mAlertDialog.setMessage("위치 정보를 얻으려면 위치 정보 권한이 필수로 필요합니다") //set alertdialog message
+        mAlertDialog.setPositiveButton("예") { dialog, id ->
+            ActivityCompat.requestPermissions(this@MapsActivity, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),REQUEST_ACCESS_FINE_LOCATION)
+        }
+        mAlertDialog.setNegativeButton("아니요") { dialog, id ->
+        }
+        mAlertDialog.show()
     }
 
     private fun locationInit() {
@@ -90,13 +129,37 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
     }
 
-    override fun onResume() {
-        super.onResume()
-        addLocationListener()
+    private fun addLocationListener() {
+        fusedLocationProviderClient.requestLocationUpdates(locationRequest,locationCallback,null)
     }
 
-    private fun addLocationListener() {
-        FusedLocationProviderClient.RequestLocationUpdates(LocationRequest,LocationCallback,null)
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            REQUEST_ACCESS_FINE_LOCATION -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    addLocationListener()
+                } else {
+                    Toast.makeText(this@MapsActivity, "권한 거부 됨", Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+        }
+    }
+
+    private val polylineOptions =  PolylineOptions().width(5f).color(Color.RED)
+
+    override fun onPause() {
+        super.onPause()
+        removeLocationListener()
+    }
+
+    private fun removeLocationListener() {
+        fusedLocationProviderClient.removeLocationUpdates(locationCallback)
     }
 
     inner class MyLocationCallBack : LocationCallback() {
@@ -108,6 +171,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             location?.run {
                 val latLng = LatLng(latitude, longitude)
                 mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17f))
+
+                Log.d("MapsActivity", "위도 : $latitude, 경도 : $longitude")
+
+                polylineOptions.add(latLng)
+
+                mMap.addPolyline((polylineOptions))
             }
         }
     }
